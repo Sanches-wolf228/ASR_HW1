@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from hw_asr.base import BaseTrainer
 from hw_asr.base.base_text_encoder import BaseTextEncoder
+from hw_asr.text_encoder.ctc_char_text_encoder import CTCCharTextEncoder
 from hw_asr.logger.utils import plot_spectrogram_to_buf
 from hw_asr.metric.utils import calc_cer, calc_wer
 from hw_asr.utils import inf_loop, MetricTracker
@@ -180,7 +181,10 @@ class Trainer(BaseTrainer):
                 )
             self.writer.set_step(epoch * self.len_epoch, part)
             self._log_scalars(self.evaluation_metrics)
-            self._log_predictions(**batch)
+            if epoch % 10 == 0:
+                self._log_predictions(beam_search=True, **batch)
+            else:
+                self._log_predictions(**batch)
             self._log_spectrogram(batch["spectrogram"])
 
         # add histogram of model parameters to the tensorboard
@@ -205,10 +209,10 @@ class Trainer(BaseTrainer):
             log_probs_length,
             audio_path,
             examples_to_log=10,
+            beam_search=False,
             *args,
             **kwargs,
     ):
-        # TODO: implement logging of beam search results
         if self.writer is None:
             return
         argmax_inds = log_probs.cpu().argmax(-1).numpy()
@@ -234,6 +238,26 @@ class Trainer(BaseTrainer):
                 "cer": cer,
             }
         self.writer.add_table("predictions", pd.DataFrame.from_dict(rows, orient="index"))
+        if beam_search:
+            tuples = list(zip(argmax_texts, text, log_probs.cpu().numpy(), log_probs_length.numpy(), audio_path))
+            shuffle(tuples)
+            rows = {}
+            for argmax_pred, target, probs, probs_length, audio_path in tuples[:examples_to_log]:
+                text_encoder = CTCCharTextEncoder()
+                bs_results = text_encoder.ctc_beam_search(probs, probs_length)
+                target = BaseTextEncoder.normalize_text(target)
+                cer = [calc_cer(target, argmax_pred) * 100] + [calc_cer(target, bs_pred.text) * 100 for bs_pred in bs_results[:3]]
+                print(cer)
+
+                rows[Path(audio_path).name] = {
+                    "target": target,
+                    "raw prediction": raw_pred,
+                    "pred argmax": pred + " CER: " + str(cer[0]),
+                    "beam search 1": bs_results[0].text + " CER: " + str(cer[1]),
+                    "beam search 2": bs_results[1].text + " CER: " + str(cer[2]),
+                    "beam search 3": bs_results[2].text + " CER: " + str(cer[3]),
+                }
+            self.writer.add_table("beam search results", pd.DataFrame.from_dict(rows, orient="index"))
 
     def _log_spectrogram(self, spectrogram_batch):
         spectrogram = random.choice(spectrogram_batch.cpu())
