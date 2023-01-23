@@ -12,6 +12,7 @@ from hw_asr.trainer import Trainer
 from hw_asr.utils import prepare_device
 from hw_asr.utils.object_loading import get_dataloaders
 from hw_asr.utils.parse_config import ConfigParser
+from hw_asr.datasets.librispeech_dataset import LibrispeechDataset
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
