@@ -1,4 +1,5 @@
 import logging
+import torch
 from typing import List
 
 logger = logging.getLogger(__name__)
@@ -12,12 +13,14 @@ def collate_fn(dataset_items: List[dict]):
     text_lengths = []
     simple_texts = []
     encoded_texts = []
+    paths = []
     
     for item in dataset_items:
         spec_lengths.append(item["spectrogram"].shape[-1])
         text_lengths.append(item["text_encoded"].shape[-1])
         simple_texts.append(item["text"])
         encoded_texts.append(item["text_encoded"])
+        paths.append(item["audio_path"])
        
     feature_length_dim = item["spectrogram"].shape[1]
     
@@ -29,10 +32,13 @@ def collate_fn(dataset_items: List[dict]):
     
     text_lengths = torch.tensor(text_lengths).int()
     batch_encoded_texts = torch.tensor(batch_encoded_texts).int()
-    
+    spec_lengths = torch.tensor(spec_lengths).int()
+
     return {
         "spectrogram": batch_spectrograms,
         "text_encoded": batch_encoded_texts,
         "text_encoded_length": text_lengths,
-        "text": simple_texts
+        "text": simple_texts,
+        "spectrogram_length": spec_lengths,
+        "audio_path" : paths
     }
