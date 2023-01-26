@@ -35,6 +35,8 @@ def main(config):
 
     # build model architecture, then print to console
     model = config.init_obj(config["arch"], module_arch, n_class=len(text_encoder))
+    if "load" in config["arch"].keys():
+        model.load_state_dict(torch.load(config["arch"]["load"])["state_dict"])
     logger.info(model)
 
     # prepare for (multi-device) GPU training
@@ -70,7 +72,6 @@ def main(config):
     )
 
     trainer.train()
-
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description="PyTorch Template")
