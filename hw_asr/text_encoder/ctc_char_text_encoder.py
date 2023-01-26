@@ -29,7 +29,7 @@ class CTCCharTextEncoder(CharTextEncoder):
                 res.append(inds[i])
         return ''.join([self.ind2char[x] for x in res])
 
-    def __extend_and_merge__(self, dp, prob):
+    def _extend_and_merge(self, dp, prob):
         new_dp = defaultdict(float)
         for (res, last_char), v in dp.items():
             for i in range(len(prob)):
@@ -39,7 +39,7 @@ class CTCCharTextEncoder(CharTextEncoder):
                     new_dp[((res + last_char).replace(self.EMPTY_TOK, ''), self.ind2char[i])] += v * prob[i]
         return new_dp
 
-    def __cut_beams__(self, dp, beam_size):
+    def _cut_beams(self, dp, beam_size):
         return dict(list(sorted(dp.items(), key = lambda x: x[1]))[-beam_size:])
 
     def ctc_beam_search(self, probs: torch.tensor, probs_length,
@@ -57,8 +57,8 @@ class CTCCharTextEncoder(CharTextEncoder):
         }
         for i in range(min(char_length, probs_length)):
             prob = probs[i]
-            dp = self.__extend_and_merge__(dp, prob)
-            dp = self.__cut_beams__(dp, beam_size)
+            dp = self._extend_and_merge(dp, prob)
+            dp = self._cut_beams(dp, beam_size)
 
         dp = list(sorted([((res + last_char).strip().replace(self.EMPTY_TOK, ''), proba) for (res, last_char), proba in dp.items()],
                          key = lambda x: -x[1]))
