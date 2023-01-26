@@ -4,6 +4,7 @@ from random import shuffle
 
 import PIL
 import pandas as pd
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
@@ -84,7 +85,7 @@ class Trainer(BaseTrainer):
         """
         self.model.train()
         self.train_metrics.reset()
-        self.writer.add_scalar("epoch", epoch)
+        #self.writer.add_scalar("epoch", epoch)
         for batch_idx, batch in enumerate(
                 tqdm(self.train_dataloader, desc="train", total=self.len_epoch)
         ):
@@ -117,6 +118,7 @@ class Trainer(BaseTrainer):
                 )
                 self._log_predictions(**batch)
                 self._log_spectrogram(batch["spectrogram"])
+                self._log_audio(batch["audio"])
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
                 # because we are interested in recent train metrics
@@ -187,9 +189,9 @@ class Trainer(BaseTrainer):
                 self._log_predictions(**batch)
             self._log_spectrogram(batch["spectrogram"])
 
-        # add histogram of model parameters to the tensorboard
-        for name, p in self.model.named_parameters():
-            self.writer.add_histogram(name, p, bins="auto")
+        # don't want to add histogram of model parameters to the tensorboard
+        #for name, p in self.model.named_parameters():
+        #    self.writer.add_histogram(name, p, bins="auto")
         return self.evaluation_metrics.result()
 
     def _progress(self, batch_idx):
@@ -239,7 +241,7 @@ class Trainer(BaseTrainer):
             }
         self.writer.add_table("predictions", pd.DataFrame.from_dict(rows, orient="index"))
         if beam_search:
-            tuples = list(zip(argmax_texts, text, log_probs.cpu().numpy(), log_probs_length.numpy(), audio_path))
+            tuples = list(zip(argmax_texts, text, np.exp(log_probs.cpu().numpy()), log_probs_length.numpy(), audio_path))
             shuffle(tuples)
             rows = {}
             for argmax_pred, target, probs, probs_length, audio_path in tuples[:examples_to_log]:
@@ -247,12 +249,10 @@ class Trainer(BaseTrainer):
                 bs_results = text_encoder.ctc_beam_search(probs, probs_length)
                 target = BaseTextEncoder.normalize_text(target)
                 cer = [calc_cer(target, argmax_pred) * 100] + [calc_cer(target, bs_pred.text) * 100 for bs_pred in bs_results[:3]]
-                print(cer)
 
                 rows[Path(audio_path).name] = {
                     "target": target,
-                    "raw prediction": raw_pred,
-                    "pred argmax": pred + " CER: " + str(cer[0]),
+                    "pred argmax": argmax_pred + " CER: " + str(cer[0]),
                     "beam search 1": bs_results[0].text + " CER: " + str(cer[1]),
                     "beam search 2": bs_results[1].text + " CER: " + str(cer[2]),
                     "beam search 3": bs_results[2].text + " CER: " + str(cer[3]),
@@ -263,6 +263,10 @@ class Trainer(BaseTrainer):
         spectrogram = random.choice(spectrogram_batch.cpu())
         image = PIL.Image.open(plot_spectrogram_to_buf(spectrogram))
         self.writer.add_image("spectrogram", ToTensor()(image))
+
+    def _log_audio(self, audio_batch):
+        self.writer.add_audio("audio_1", random.choice(audio_batch), self.config["preprocessing"]["sr"])
+        self.writer.add_audio("audio_2", random.choice(audio_batch), self.config["preprocessing"]["sr"])
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):
