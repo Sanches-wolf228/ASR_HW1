@@ -7,14 +7,12 @@ from hw_asr.base import BaseModel
 class CNN(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=(41, 11), stride=(2, 2), padding=(20, 5))
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=(21, 11), stride=(2, 1), padding=(10, 5))
+        self.conv = nn.Conv2d(1, 32, kernel_size=(41, 21), stride=(2, 2), padding=(20, 10))
         self.bn = nn.BatchNorm2d(32)
         self.act = nn.Hardtanh(0, 20, inplace=True)
 
     def forward(self, x):
-        x = self.act(self.bn(self.conv1(x)))
-        x = self.act(self.bn(self.conv2(x)))
+        x = self.act(self.bn(self.conv(x)))
         return x
 
 class RNN(nn.Module):
@@ -45,7 +43,7 @@ class DeepSpeech2(BaseModel):
         super().__init__(n_feats, n_class, **batch)
         self.cnn = CNN()
         self.rnns = nn.ModuleList()
-        rnn_input_size = ((n_feats + 1) // 2 + 1) // 2 * 32
+        rnn_input_size = (n_feats + 1) // 2 * 32
 
         for i in range(num_rnn_layers):
             self.rnns.append(RNN(
