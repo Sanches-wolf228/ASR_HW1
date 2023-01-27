@@ -4,6 +4,19 @@ from torch import nn
 
 from hw_asr.base import BaseModel
 
+class CNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=(41, 11), stride=(2, 2), padding=(20, 5))
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=(21, 11), stride=(2, 1), padding=(10, 5))
+        self.bn = nn.BatchNorm2d(32)
+        self.act = nn.Hardtanh(0, 20, inplace=True)
+
+    def forward(self, x):
+        x = self.act(self.bn(self.conv1(x)))
+        x = self.act(self.bn(self.conv2(x)))
+        return x
+
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size=256, bidirectional=True):
         super().__init__()
@@ -28,11 +41,11 @@ class RNN(nn.Module):
         return x
 
 class DeepSpeech2(BaseModel):
-    def __init__(self, n_feats, n_class, num_rnn_layers=5, rnn_hidden_size=256, **batch):
+    def __init__(self, n_feats, n_class, num_rnn_layers=3, rnn_hidden_size=256, **batch):
         super().__init__(n_feats, n_class, **batch)
-        self.cnn = nn.Conv2d(1, 32, kernel_size=(41, 21), stride=2, padding=(20, 10))
+        self.cnn = CNN()
         self.rnns = nn.ModuleList()
-        rnn_input_size = n_feats * 32 // 2
+        rnn_input_size = ((n_feats + 1) // 2 + 1) // 2 * 32
 
         for i in range(num_rnn_layers):
             self.rnns.append(RNN(
@@ -60,4 +73,4 @@ class DeepSpeech2(BaseModel):
         return {"logits": x} # batch, time, n_class
 
     def transform_input_lengths(self, input_lengths):
-        return ((input_lengths + 1) // 2 + 1) // 2
+        return input_lengths // 2
