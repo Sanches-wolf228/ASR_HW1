@@ -5,8 +5,10 @@
 < Write your installation guide here >
 
 ```shell
-pip install -r ./requirements.txt
+%pip install -r ./requirements.txt
 ```
+
+Запустить ячейки ноутбука name.ipynb
 
 ## Recommended implementation order
 
