@@ -8,7 +8,15 @@
 %pip install -r ./requirements.txt
 ```
 
-Запустить ячейки ноутбука name.ipynb
+https://drive.google.com/file/d/178EJsGDKoSwrxtXLcm37KRzfYSC3L4lz/view?usp=sharing
+
+По этой ссылке можно скачать language-model
+
+https://drive.google.com/file/d/1WW7tj5BVkelZVzZ0ZNDWLZmvmEk9CBmw/view?usp=sharing
+
+По этой ссылке можно скачать чекпоинты модели
+
+Дальше запустить ячейки ноутбука name.ipynb
 
 ## Recommended implementation order
 
