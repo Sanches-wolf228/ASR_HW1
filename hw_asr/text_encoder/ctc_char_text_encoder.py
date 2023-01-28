@@ -1,7 +1,9 @@
 from typing import List, NamedTuple
 from collections import defaultdict
+from pyctcdecode import build_ctcdecoder
 
 import torch
+import numpy as np
 
 from .char_text_encoder import CharTextEncoder
 
@@ -12,11 +14,17 @@ class Hypothesis(NamedTuple):
 class CTCCharTextEncoder(CharTextEncoder):
     EMPTY_TOK = "^"
 
-    def __init__(self, alphabet: List[str] = None):
+    def __init__(self, alphabet: List[str] = None, alpha = 0.1, beta = 0.2):
         super().__init__(alphabet)
         vocab = [self.EMPTY_TOK] + list(self.alphabet)
         self.ind2char = dict(enumerate(vocab))
         self.char2ind = {v: k for k, v in self.ind2char.items()}
+        self.ctc_decoder = build_ctcdecoder(
+            [''] + [x.upper() for x in self.alphabet],
+            alpha=alpha,
+            beta=beta,
+            kenlm_model_path='lm.arpa'
+        )
 
     def ctc_decode(self, inds: List[int]) -> str:
         if len(inds) == 0:
@@ -42,7 +50,7 @@ class CTCCharTextEncoder(CharTextEncoder):
     def _cut_beams(self, dp, beam_size):
         return dict(list(sorted(dp.items(), key = lambda x: x[1]))[-beam_size:])
 
-    def ctc_beam_search(self, probs: torch.tensor, probs_length,
+    def my_ctc_beam_search(self, probs: torch.tensor, probs_length,
                         beam_size: int = 100) -> List[Hypothesis]:
         """
         Performs beam search and returns a list of pairs (hypothesis, hypothesis probability).
@@ -55,8 +63,8 @@ class CTCCharTextEncoder(CharTextEncoder):
         dp = {
             ("", self.EMPTY_TOK) : 1.0
         }
-        for i in range(min(char_length, probs_length)):
-            prob = probs[i]
+        probs = np.exp(probs[:probs_length].cpu().detach().numpy())
+        for prob in probs:
             dp = self._extend_and_merge(dp, prob)
             dp = self._cut_beams(dp, beam_size)
 
@@ -64,3 +72,21 @@ class CTCCharTextEncoder(CharTextEncoder):
                          key = lambda x: -x[1]))
         
         return [Hypothesis(res, proba) for res, proba in dp]
+    
+    def ctc_beam_search(self, probs: torch.tensor, probs_length,
+                        beam_size: int = 100) -> List[Hypothesis]:
+        """
+        Performs beam search and returns a list of pairs (hypothesis, hypothesis probability).
+        """
+        assert len(probs.shape) == 2
+        char_length, voc_size = probs.shape
+        assert voc_size == len(self.ind2char)
+        dp: List[Hypothesis] = []
+
+        probs = probs[:probs_length].cpu().detach().numpy()
+        decoded_beams = self.ctc_decoder.decode_beams(probs, beam_width=beam_size)
+
+        for text, _, _, logits, _ in decoded_beams:
+            dp.append(Hypothesis(text.lower(), np.exp(logits)))
+
+        return dp
